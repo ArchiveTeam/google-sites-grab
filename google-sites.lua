@@ -13,6 +13,9 @@ local downloaded = {}
 local addedtolist = {}
 local abortgrab = false
 
+local discovered_a = {}
+local discovered_site = {}
+
 read_file = function(file)
   if file then
     local f = assert(io.open(file))
@@ -49,14 +52,18 @@ allowed = function(url, parenturl)
     tested[s] = tested[s] + 1
   end
 
-  local match = nil
-  if item_type == "site" then
-    match = string.match(url, "^https?://sites%.google%.com/site/([a-zA-Z0-9%-_%.]+)")
-  elseif item_type == "a" then
+  local match = string.match(url, "^https?://sites%.google%.com/site/([a-zA-Z0-9%-_%.]+)")
+  if not match then
     match = string.match(url, "^https?://sites%.google%.com/a/([a-zA-Z0-9%-_%.]+/[a-zA-Z0-9%-_%.]+)")
   end
-  if match and string.lower(match) == string.lower(item_value) then
-    return true
+  if match then
+    if string.lower(match) == string.lower(item_value) then
+      return true
+    elseif string.find(match, "/") then
+      discovered_a[match] = true
+    else
+      discovered_site[match] = true
+    end
   end
 
   return false
@@ -67,7 +74,7 @@ wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_pars
   local html = urlpos["link_expect_html"]
 
   if (downloaded[url] ~= true and addedtolist[url] ~= true)
-    and allowed(url, parent["url"]) then
+    and (allowed(url, parent["url"]) or html == 0) then
     addedtolist[url] = true
     return true
   end
@@ -240,6 +247,17 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
   end
 
   return wget.actions.NOTHING
+end
+
+wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total_downloaded_bytes, total_download_time)
+  local file = io.open(item_dir .. '/' .. warc_file_base .. '_data.txt', 'w')
+  for site, _ in pairs(discovered_a) do
+    file:write("a:" .. site .. "\n")
+  end
+  for site, _ in pairs(discovered_site) do
+    file:write("site:" .. site .. "\n")
+  end
+  file:close()
 end
 
 wget.callbacks.before_exit = function(exit_status, exit_status_string)
