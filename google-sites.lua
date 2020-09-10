@@ -16,6 +16,10 @@ local abortgrab = false
 local discovered_a = {}
 local discovered_site = {}
 
+for ignore in io.open("ignore-list", "r"):lines() do
+  downloaded[ignore] = true
+end
+
 read_file = function(file)
   if file then
     local f = assert(io.open(file))
