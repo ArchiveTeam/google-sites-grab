@@ -55,6 +55,13 @@ allowed = function(url, parenturl)
     end
     tested[s] = tested[s] + 1
   end
+  
+  -- Feed
+  if item_type == "site" and url == "https://sites.google.com/feeds/content/site/" .. item_value then
+    return true
+  elseif item_type == "a" and url == "https://sites.google.com/feeds/content/" .. item_value then
+    return true
+  end
 
   local match = string.match(url, "^https?://sites%.google%.com/site/([a-zA-Z0-9%-_%.]+)")
   if not match then
@@ -162,6 +169,13 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   -- When attredirects is *left on*, you get redirect to a subdomain of googlegroups.com, which I discussed in chat; this is a separate thing
   if string.match(url, "%?attredirects=0$") then
    check(string.gsub(url, "%?attredirects=0$", ""))
+  end
+  
+  -- Get the feed
+  if item_type == "site" and url == "https://sites.google.com/site/" .. item_value .. "/" then
+    check("https://sites.google.com/feeds/content/site/" .. item_value)
+  elseif item_type == "a" and url == "https://sites.google.com/a/" .. item_value .. "/" then
+    check("https://sites.google.com/feeds/content/" .. item_value)
   end
 
   if allowed(url, nil) and status_code == 200
