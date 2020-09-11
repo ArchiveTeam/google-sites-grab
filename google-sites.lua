@@ -69,6 +69,10 @@ allowed = function(url, parenturl)
       discovered_site[match] = true
     end
   end
+  
+  if string.match(url, "^https?://[^/]*%.googlegroups%.com") then
+    return true
+  end
 
   return false
 end
@@ -147,6 +151,17 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   if string.match(url, "^[^%?]+%?.*height=")
     or string.match(url, "^[^%?]+%?.*width=") then
     check(string.match(url, "^([^%?]+)"))
+  end
+  
+  -- No URL extraction from these
+  if string.match(url, "^https?://[^/]*%.googlegroups%.com") then
+    return {}
+  end
+  
+  -- You get URLs like this when you click on images to see the full image - e.g. on https://sites.google.com/site/zenopusarchives/.
+  -- When attredirects is *left on*, you get redirect to a subdomain of googlegroups.com, which I discussed in chat; this is a separate thing
+  if string.match(url, "%?attredirects=0$") then
+   check(string.gsub(url, "%?attredirects=0$", ""))
   end
 
   if allowed(url, nil) and status_code == 200
