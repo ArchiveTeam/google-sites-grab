@@ -89,6 +89,11 @@ end
 wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_parsed, iri, verdict, reason)
   local url = urlpos["url"]["url"]
   local html = urlpos["link_expect_html"]
+  
+  -- These types of static resources have a version number that change frequently
+  if string.match(url, "^https?://ssl%.gstatic%.com/sites/p/[a-z0-9]+/") and html then
+    return false
+  end
 
   if (downloaded[url] ~= true and addedtolist[url] ~= true)
     and (allowed(url, parent["url"]) or html == 0) then
