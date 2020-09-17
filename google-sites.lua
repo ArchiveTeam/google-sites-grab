@@ -57,9 +57,11 @@ allowed = function(url, parenturl)
   end
   
   -- Feed
-  if item_type == "site" and url == "https://sites.google.com/feeds/content/site/" .. item_value then
+  if item_type == "site" and (url == "https://sites.google.com/feeds/content/site/" .. item_value
+                              or url == "https://sites.google.com/feeds/content/site/" .. item_value .. "?max-results=1000000000") then
     return true
-  elseif item_type == "a" and url == "https://sites.google.com/feeds/content/" .. item_value then
+  elseif item_type == "a" and (url == "https://sites.google.com/feeds/content/" .. item_value
+                               or url == "https://sites.google.com/feeds/content/" .. item_value .. "?max-results=1000000000") then
     return true
   end
 
@@ -173,8 +175,10 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   
   -- Get the feed
   if item_type == "site" and url == "https://sites.google.com/site/" .. item_value .. "/" then
+    check("https://sites.google.com/feeds/content/site/" .. item_value .. "?max-results=1000000000")
     check("https://sites.google.com/feeds/content/site/" .. item_value)
   elseif item_type == "a" and url == "https://sites.google.com/a/" .. item_value .. "/" then
+    check("https://sites.google.com/feeds/content/" .. item_value .. "?max-results=1000000000")
     check("https://sites.google.com/feeds/content/" .. item_value)
   end
 
