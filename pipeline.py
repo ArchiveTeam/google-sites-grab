@@ -50,7 +50,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20200910.03'
+VERSION = '20200917.01'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'google-sites'
 TRACKER_HOST = 'trackerproxy.archiveteam.org'

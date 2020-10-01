@@ -55,6 +55,15 @@ allowed = function(url, parenturl)
     end
     tested[s] = tested[s] + 1
   end
+  
+  -- Feed
+  if item_type == "site" and (url == "https://sites.google.com/feeds/content/site/" .. item_value
+                              or url == "https://sites.google.com/feeds/content/site/" .. item_value .. "?max-results=1000000000") then
+    return true
+  elseif item_type == "a" and (url == "https://sites.google.com/feeds/content/" .. item_value
+                               or url == "https://sites.google.com/feeds/content/" .. item_value .. "?max-results=1000000000") then
+    return true
+  end
 
   local match = string.match(url, "^https?://sites%.google%.com/site/([a-zA-Z0-9%-_%.]+)")
   if not match then
@@ -69,6 +78,10 @@ allowed = function(url, parenturl)
       discovered_site[match] = true
     end
   end
+  
+  if string.match(url, "^https?://[^/]*%.googlegroups%.com") then
+    return true
+  end
 
   return false
 end
@@ -76,6 +89,11 @@ end
 wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_parsed, iri, verdict, reason)
   local url = urlpos["url"]["url"]
   local html = urlpos["link_expect_html"]
+  
+  -- These types of static resources have a version number that change frequently
+  if string.match(url, "^https?://ssl%.gstatic%.com/sites/p/[a-z0-9]+/") and html then
+    return false
+  end
 
   if (downloaded[url] ~= true and addedtolist[url] ~= true)
     and (allowed(url, parent["url"]) or html == 0) then
@@ -147,6 +165,26 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   if string.match(url, "^[^%?]+%?.*height=")
     or string.match(url, "^[^%?]+%?.*width=") then
     check(string.match(url, "^([^%?]+)"))
+  end
+  
+  -- No URL extraction from these
+  if string.match(url, "^https?://[^/]*%.googlegroups%.com") then
+    return {}
+  end
+  
+  -- You get URLs like this when you click on images to see the full image - e.g. on https://sites.google.com/site/zenopusarchives/.
+  -- When attredirects is *left on*, you get redirect to a subdomain of googlegroups.com, which I discussed in chat; this is a separate thing
+  if string.match(url, "%?attredirects=0$") then
+   check(string.gsub(url, "%?attredirects=0$", ""))
+  end
+  
+  -- Get the feed
+  if item_type == "site" and url == "https://sites.google.com/site/" .. item_value .. "/" then
+    check("https://sites.google.com/feeds/content/site/" .. item_value .. "?max-results=1000000000")
+    check("https://sites.google.com/feeds/content/site/" .. item_value)
+  elseif item_type == "a" and url == "https://sites.google.com/a/" .. item_value .. "/" then
+    check("https://sites.google.com/feeds/content/" .. item_value .. "?max-results=1000000000")
+    check("https://sites.google.com/feeds/content/" .. item_value)
   end
 
   if allowed(url, nil) and status_code == 200
