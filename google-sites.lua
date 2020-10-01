@@ -1,6 +1,7 @@
 dofile("table_show.lua")
 dofile("urlcode.lua")
 local urlparse = require("socket.url")
+local http = require("socket.http")
 
 local item_value = os.getenv('item_value')
 local item_type = os.getenv('item_type')
@@ -13,8 +14,9 @@ local downloaded = {}
 local addedtolist = {}
 local abortgrab = false
 
-local discovered_a = {}
-local discovered_site = {}
+local item_value_lower = string.lower(item_value)
+
+local discovered = {}
 
 for ignore in io.open("ignore-list", "r"):lines() do
   downloaded[ignore] = true
@@ -31,16 +33,60 @@ read_file = function(file)
   end
 end
 
+discover_item = function(type_, name, tries)
+  if tries == nil then
+    tries = 0
+  end
+  name = urlparse.escape(urlparse.unescape(name))
+  item = type_ .. ':' .. name
+  if discovered[item] then
+    return true
+  end
+  io.stdout:write("Discovered item " .. item .. ".\n")
+  io.stdout:flush()
+  local body, code, headers, status = http.request(
+    "http://blackbird-amqp.meo.ws:23038/googlesites-lwi23sd7qjsa/",
+    item
+  )
+  if code == 200 or code == 409 then
+    discovered[item] = true
+    return true
+  elseif code == 404 then
+    io.stdout:write("Project key not found.\n")
+    io.stdout:flush()
+  elseif code == 400 then
+    io.stdout:write("Bad format.\n")
+    io.stdout:flush()
+  else
+    io.stdout:write("Could not queue discovered item. Retrying...\n")
+    io.stdout:flush()
+    if tries == 10 then
+      io.stdout:write("Maximum retries reached for sending discovered item.\n")
+      io.stdout:flush()
+    else
+      os.execute("sleep " .. math.pow(2, tries))
+      return discover_item(type_, name, tries + 1)
+    end
+  end
+  abortgrab = true
+  return false
+end
+
 allowed = function(url, parenturl)
   if string.match(url, "'+")
     or string.match(url, "[<>\\%*%$;%^%[%],%(%){}]")
+    or string.match(url, "^https?://sites%.google%.com/feeds/revision/")
+    or string.match(url, "^https?://sites%.google%.com/feeds/content/[^/]+/[^/]+/batch$")
     or (
       item_type == "a"
       and string.match(url, "^https?://sites%.google%.com/a/[^/]+/[^/]+/_/tz$")
     )
     or (
       item_type == "site"
-      and string.match(url, "^https?://sites%.google%.com/site/[^/]+/_/tz$")
+      and (
+        string.match(url, "^https?://sites%.google%.com/site/[^/]+/_/tz$")
+        or string.match(url, "^https?://sites%.google%.com/a/defaultdomain/[^/]+/_/tz$")
+      )
     ) then
     return false
   end
@@ -55,17 +101,34 @@ allowed = function(url, parenturl)
     end
     tested[s] = tested[s] + 1
   end
-  
-  -- Feed
-  if item_type == "site" and (url == "https://sites.google.com/feeds/content/site/" .. item_value
-                              or url == "https://sites.google.com/feeds/content/site/" .. item_value .. "?max-results=1000000000") then
+
+--[[  if url == "https://sites.google.com/feeds/content/site/" .. item_value
+    or url == "https://sites.google.com/feeds/content/site/" .. item_value .. "?max-results=1000000000"
+    or url == "https://sites.google.com/feeds/content/" .. item_value
+    or url == "https://sites.google.com/feeds/content/" .. item_value .. "?max-results=1000000000" then
     return true
-  elseif item_type == "a" and (url == "https://sites.google.com/feeds/content/" .. item_value
-                               or url == "https://sites.google.com/feeds/content/" .. item_value .. "?max-results=1000000000") then
+  end]]
+
+  if string.match(url, "^https?://[^/]*%.googlegroups%.com") then
     return true
   end
 
-  local match = string.match(url, "^https?://sites%.google%.com/site/([a-zA-Z0-9%-_%.]+)")
+  prev = nil
+  for s in string.gmatch(url, "([a-zA-Z0-9%-_%.]+)") do
+    if item_type == "site" and string.lower(s) == item_value_lower then
+      return true
+    elseif item_type == "a" then
+      if prev and string.lower(prev .. "/" .. s) == item_value_lower then
+        return true
+      end
+      prev = s
+    end
+  end
+
+--[[  local match = string.match(url, "^https?://sites%.google%.com/site/([a-zA-Z0-9%-_%.]+)")
+  if not match then
+    match = string.match(url, "^https?://sites%.google%.com/a/defaultdomain/([a-zA-Z0-9%-_%.]+)")
+  end
   if not match then
     match = string.match(url, "^https?://sites%.google%.com/a/([a-zA-Z0-9%-_%.]+/[a-zA-Z0-9%-_%.]+)")
   end
@@ -73,15 +136,11 @@ allowed = function(url, parenturl)
     if string.lower(match) == string.lower(item_value) then
       return true
     elseif string.find(match, "/") then
-      discovered_a[match] = true
+      discover_item("a", match)
     else
-      discovered_site[match] = true
+      discover_item("site", match)
     end
-  end
-  
-  if string.match(url, "^https?://[^/]*%.googlegroups%.com") then
-    return true
-  end
+  end]]
 
   return false
 end
@@ -89,7 +148,7 @@ end
 wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_parsed, iri, verdict, reason)
   local url = urlpos["url"]["url"]
   local html = urlpos["link_expect_html"]
-  
+
   -- These types of static resources have a version number that change frequently
   if string.match(url, "^https?://ssl%.gstatic%.com/sites/p/[a-z0-9]+/") and html then
     return false
@@ -100,20 +159,23 @@ wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_pars
     addedtolist[url] = true
     return true
   end
-  
+
   return false
 end
 
 wget.callbacks.get_urls = function(file, url, is_css, iri)
   local urls = {}
   local html = nil
-  
+
   downloaded[url] = true
 
   local function check(urla)
     local origurl = url
     local url = string.match(urla, "^([^#]+)")
     local url_ = string.gsub(string.match(url, "^(.-)%.?$"), "&amp;", "&")
+    if string.match(url_, "%?attredirects=0$") then
+      check(string.gsub(url, "%?attredirects=0$", ""))
+    end
     if (downloaded[url_] ~= true and addedtolist[url_] ~= true)
       and allowed(url_, origurl) then
       table.insert(urls, { url=url_ })
@@ -166,28 +228,18 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     or string.match(url, "^[^%?]+%?.*width=") then
     check(string.match(url, "^([^%?]+)"))
   end
-  
-  -- No URL extraction from these
-  if string.match(url, "^https?://[^/]*%.googlegroups%.com") then
-    return {}
+
+  local a, b = string.match(url, "^(https?://sites%.google%.com)/site/(.+)$")
+  if not a or not b then
+    a, b = string.match(url, "^(https?://sites%.google%.com)/a/defaultdomain/(.+)$")
   end
-  
-  -- You get URLs like this when you click on images to see the full image - e.g. on https://sites.google.com/site/zenopusarchives/.
-  -- When attredirects is *left on*, you get redirect to a subdomain of googlegroups.com, which I discussed in chat; this is a separate thing
-  if string.match(url, "%?attredirects=0$") then
-   check(string.gsub(url, "%?attredirects=0$", ""))
-  end
-  
-  -- Get the feed
-  if item_type == "site" and url == "https://sites.google.com/site/" .. item_value .. "/" then
-    check("https://sites.google.com/feeds/content/site/" .. item_value .. "?max-results=1000000000")
-    check("https://sites.google.com/feeds/content/site/" .. item_value)
-  elseif item_type == "a" and url == "https://sites.google.com/a/" .. item_value .. "/" then
-    check("https://sites.google.com/feeds/content/" .. item_value .. "?max-results=1000000000")
-    check("https://sites.google.com/feeds/content/" .. item_value)
+  if a and b then
+    check(a .. "/a/defaultdomain/" .. b)
+    check(a .. "/site/" .. b)
   end
 
   if allowed(url, nil) and status_code == 200
+    and not string.match(url, "^https?://[^/]*%.googlegroups%.com")
     and not (
       item_type == "site"
       and string.match(url, "^https?://sites%.google%.com/site/[^/]+/_/rsrc/")
@@ -197,6 +249,16 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       and string.match(url, "^https?://sites%.google%.com/site/[^/]+/[^/]+/_/rsrc/")
     ) then
     html = read_file(file)
+    if string.match(url, "^https?://sites%.google%.com/site/[^/]+/$")
+      or string.match(url, "^https?://sites%.google%.com/a/defaultdomain/[^/]+/$") then
+      check("https://sites.google.com/feeds/content/site/" .. item_value .. "?max-results=1000000000")
+      check("https://sites.google.com/feeds/content/site/" .. item_value)
+      check("https://sites.google.com/feeds/content/defaultdomain/" .. item_value .. "?max-results=1000000000")
+      check("https://sites.google.com/feeds/content/defaultdomain/" .. item_value)
+    elseif string.match(url, "^https?://sites%.google%.com/a/[^/]+/[^/]+/$") then
+      check("https://sites.google.com/feeds/content/" .. item_value .. "?max-results=1000000000")
+      check("https://sites.google.com/feeds/content/" .. item_value)
+    end
     for newurl in string.gmatch(string.gsub(html, "&quot;", '"'), '([^"]+)') do
       checknewurl(newurl)
     end
@@ -225,7 +287,7 @@ end
 
 wget.callbacks.httploop_result = function(url, err, http_stat)
   status_code = http_stat["statcode"]
-  
+
   url_count = url_count + 1
   io.stdout:write(url_count .. "=" .. status_code .. " " .. url["url"] .. "  \n")
   io.stdout:flush()
@@ -238,7 +300,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
       return wget.actions.EXIT
     end
   end
-  
+
   if status_code >= 200 and status_code <= 399 then
     downloaded[url["url"]] = true
     downloaded[string.gsub(url["url"], "https?://", "http://")] = true
@@ -249,15 +311,9 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     io.stdout:flush()
     return wget.actions.ABORT
   end
-  
-  if status_code >= 500
-      or (
-        status_code >= 400
-        and status_code ~= 404
-        and status_code ~= 406
-        and status_code ~= 451
-      )
-      or status_code  == 0 then
+
+  if (status_code >= 400 and status_code ~= 404)
+    or status_code  == 0 then
     io.stdout:write("Server returned "..http_stat.statcode.." ("..err.."). Sleeping.\n")
     io.stdout:flush()
     local maxtries = 10
@@ -289,17 +345,6 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
   end
 
   return wget.actions.NOTHING
-end
-
-wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total_downloaded_bytes, total_download_time)
-  local file = io.open(item_dir .. '/' .. warc_file_base .. '_data.txt', 'w')
-  for site, _ in pairs(discovered_a) do
-    file:write("a:" .. site .. "\n")
-  end
-  for site, _ in pairs(discovered_site) do
-    file:write("site:" .. site .. "\n")
-  end
-  file:close()
 end
 
 wget.callbacks.before_exit = function(exit_status, exit_status_string)
