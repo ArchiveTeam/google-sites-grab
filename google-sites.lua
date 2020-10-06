@@ -174,8 +174,8 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     local origurl = url
     local url = string.match(urla, "^([^#]+)")
     local url_ = string.gsub(string.match(url, "^(.-)%.?$"), "&amp;", "&")
-    if string.match(url_, "%?attredirects=0$") then
-      check(string.gsub(url, "%?attredirects=0$", ""))
+    if string.match(url_, "attredirects=[0-9]+") then
+      check(string.match(url_, "^([^%?]+)%?"))
     end
     if (downloaded[url_] ~= true and addedtolist[url_] ~= true)
       and allowed(url_, origurl) then
@@ -331,13 +331,13 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     io.stdout:flush()
     local maxtries = 10
     if not allowed(url["url"], nil) then
-      maxtries = 2
+      maxtries = 1
     end
     if tries >= maxtries then
       io.stdout:write("\nI give up...\n")
       io.stdout:flush()
       tries = 0
-      if maxtries == 2 then
+      if maxtries == 1 then
         return wget.actions.EXIT
       else
         return wget.actions.ABORT
