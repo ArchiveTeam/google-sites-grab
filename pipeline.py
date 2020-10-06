@@ -25,6 +25,7 @@ from seesaw.item import ItemInterpolation, ItemValue
 from seesaw.task import SimpleTask, LimitConcurrent, Task
 from seesaw.tracker import GetItemFromTracker, PrepareStatsForTracker, \
     UploadWithTracker, SendDoneToTracker
+import zstandard
 
 if StrictVersion(seesaw.__version__) < StrictVersion('0.8.5'):
     raise Exception('This pipeline needs seesaw version 0.8.5 or higher.')
@@ -50,7 +51,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20201001.01'
+VERSION = '20201006.01'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'google-sites'
 TRACKER_HOST = 'trackerproxy.archiveteam.org'
@@ -105,15 +106,15 @@ class PrepareDirectories(SimpleTask):
         os.makedirs(dirname)
 
         item['item_dir'] = dirname
-        item['warc_file_base'] = '%s-%s-%s' % (self.warc_prefix, escaped_item_name[:50],
-            time.strftime('%Y%m%d-%H%M%S'))
+        item['warc_file_base'] = '-'.join([
+            self.warc_prefix,
+            escaped_item_name[:45],
+            hashlib.sha1(item_name.encode('utf8')).hexdigest()[:10],
+            time.strftime('%Y%m%d-%H%M%S')
+        ])
 
-        open('%(item_dir)s/%(warc_file_base)s.warc.gz' % item, 'w').close()
-        with open('%(item_dir)s/%(warc_file_base)s_data.txt' % item, 'w') as f:
-            data = item['item_name'].split(':')
-            r = requests.get('http://trackerproxy.archiveteam.org/now')
-            assert r.status_code == 200
-            f.write(':'.join(['web', r.text.split('.')[0]] + data[2:]))
+        open('%(item_dir)s/%(warc_file_base)s.warc.zst' % item, 'w').close()
+        open('%(item_dir)s/%(warc_file_base)s_data.txt' % item, 'w').close()
 
 
 class MoveFiles(SimpleTask):
@@ -121,8 +122,8 @@ class MoveFiles(SimpleTask):
         SimpleTask.__init__(self, 'MoveFiles')
 
     def process(self, item):
-        os.rename('%(item_dir)s/%(warc_file_base)s.warc.gz' % item,
-            '%(data_dir)s/%(warc_file_base)s.warc.gz' % item)
+        os.rename('%(item_dir)s/%(warc_file_base)s.warc.zst' % item,
+            '%(data_dir)s/%(warc_file_base)s.%(dict_project)s.%(dict_id)s.warc.zst' % item)
         os.rename('%(item_dir)s/%(warc_file_base)s_data.txt' % item,
             '%(data_dir)s/%(warc_file_base)s_data.txt' % item)
 
@@ -146,6 +147,41 @@ def stats_id_function(item):
     }
 
     return d
+
+
+class ZstdDict(object):
+    created = 0
+    data = None
+
+    @classmethod
+    def get_dict(cls):
+        if cls.data is not None and time.time() - cls.created < 1800:
+            return cls.data
+        response = requests.get(
+            'http://trackerproxy.archiveteam.org:25654/dictionary',
+            params={
+                'project': TRACKER_ID
+            }
+        )
+        response.raise_for_status()
+        response = response.json()
+        if cls.data is not None and response['id'] == cls.data['id']:
+            cls.created = time.time()
+            return cls.data
+        print('Downloading latest dictionary.')
+        response_dict = requests.get(response['url'])
+        response_dict.raise_for_status()
+        raw_data = response_dict.content
+        if hashlib.sha256(raw_data).hexdigest() != response['sha256']:
+            raise ValueError('Hash of downloaded dictionary does not match.')
+        if raw_data[:4] == b'\x28\xB5\x2F\xFD':
+            raw_data = zstandard.ZstdDecompressor().decompress(raw_data)
+        cls.data = {
+            'id': response['id'],
+            'dict': raw_data
+        }
+        cls.created = time.time()
+        return cls.data
 
 
 class WgetArgs(object):
@@ -176,7 +212,19 @@ class WgetArgs(object):
             '--warc-header', 'google-sites-dld-script-version: ' + VERSION,
             '--warc-header', ItemInterpolation('google-sites-item: %(item_name)s'),
             '--warc-dedup-url-agnostic',
+            '--warc-compression-use-zstd',
+            '--warc-zstd-dict-no-include',
+            '--header', 'Accept-Language: en-US,en;q=0.7'
         ]
+
+        dict_data = ZstdDict.get_dict()
+        with open(os.path.join(item['item_dir'], 'zstdict'), 'wb') as f:
+            f.write(dict_data['dict'])
+        item['dict_id'] = dict_data['id']
+        item['dict_project'] = TRACKER_ID
+        wget_args.extend([
+            '--warc-zstd-dict', ItemInterpolation('%(item_dir)s/zstdict'),
+        ])
 
         item_name = item['item_name']
         item_type, item_value = item_name.split(':')
@@ -195,8 +243,12 @@ class WgetArgs(object):
             wget_args.append('https://sites.google.com/a/defaultdomain/{}/'.format(item_value))
         elif item_type == 'a':
             assert '/' in item_value
-            wget_args.extend(['--warc-header', 'google-sites-subsite: ' + item_value])
+            wget_args.extend(['--warc-header', 'google-sites-domainsite: ' + item_value])
             wget_args.append('https://sites.google.com/a/{}/'.format(item_value))
+        elif item_type == 'domain':
+            raise ValueError('Item not supported yet.')
+        else:
+            raise ValueError('Unknown item type.')
 
         if 'bind_address' in globals():
             wget_args.extend(['--bind-address', globals()['bind_address']])
@@ -240,7 +292,7 @@ pipeline = Pipeline(
         defaults={'downloader': downloader, 'version': VERSION},
         file_groups={
             'data': [
-                ItemInterpolation('%(item_dir)s/%(warc_file_base)s.warc.gz')
+                ItemInterpolation('%(item_dir)s/%(warc_file_base)s.warc.zst')
             ]
         },
         id_function=stats_id_function,
@@ -254,7 +306,7 @@ pipeline = Pipeline(
             downloader=downloader,
             version=VERSION,
             files=[
-                ItemInterpolation('%(data_dir)s/%(warc_file_base)s.warc.gz'),
+                ItemInterpolation('%(data_dir)s/%(warc_file_base)s.%(dict_project)s.%(dict_id)s.warc.zst'),
                 ItemInterpolation('%(data_dir)s/%(warc_file_base)s_data.txt')
             ],
             rsync_target_source_path=ItemInterpolation('%(data_dir)s/'),

@@ -17,6 +17,7 @@ local abortgrab = false
 local item_value_lower = string.lower(item_value)
 
 local discovered = {}
+discovered[item_type .. ":" .. item_value] = true
 
 for ignore in io.open("ignore-list", "r"):lines() do
   downloaded[ignore] = true
@@ -37,7 +38,6 @@ discover_item = function(type_, name, tries)
   if tries == nil then
     tries = 0
   end
-  name = urlparse.escape(urlparse.unescape(name))
   item = type_ .. ':' .. name
   if discovered[item] then
     return true
@@ -77,6 +77,7 @@ allowed = function(url, parenturl)
     or string.match(url, "[<>\\%*%$;%^%[%],%(%){}]")
     or string.match(url, "^https?://sites%.google%.com/feeds/revision/")
     or string.match(url, "^https?://sites%.google%.com/feeds/content/[^/]+/[^/]+/batch$")
+    or string.match(url, "^https?://accounts%.google%.com/ServiceLogin")
     or (
       item_type == "a"
       and string.match(url, "^https?://sites%.google%.com/a/[^/]+/[^/]+/_/tz$")
@@ -102,6 +103,22 @@ allowed = function(url, parenturl)
     tested[s] = tested[s] + 1
   end
 
+  local match = string.match(url, "^https?://sites%.google%.com/site/([a-zA-Z0-9%%%-_%.]+)")
+  if not match then
+    match = string.match(url, "^https?://sites%.google%.com/a/defaultdomain/([a-zA-Z0-9%%%-_%.]+)")
+  end
+  if not match then
+    match = string.match(url, "^https?://sites%.google%.com/a/([^/]+/[a-zA-Z0-9%%%-_%.]+)")
+  end
+  if match then
+    if string.find(match, "/") then
+      discover_item("a", match)
+      discover_item("domain", string.match(match, "^([^/]+)/"))
+    else
+      discover_item("site", match)
+    end
+  end
+
 --[[  if url == "https://sites.google.com/feeds/content/site/" .. item_value
     or url == "https://sites.google.com/feeds/content/site/" .. item_value .. "?max-results=1000000000"
     or url == "https://sites.google.com/feeds/content/" .. item_value
@@ -109,12 +126,13 @@ allowed = function(url, parenturl)
     return true
   end]]
 
-  if string.match(url, "^https?://[^/]*%.googlegroups%.com") then
+  if string.match(url, "^https?://[^/]*%.googlegroups%.com")
+    or string.match(url, "^https?://[^/]*google%.com/url") then
     return true
   end
 
   prev = nil
-  for s in string.gmatch(url, "([a-zA-Z0-9%-_%.]+)") do
+  for s in string.gmatch(url, "([a-zA-Z0-9%%%-_%.]+)") do
     if item_type == "site" and string.lower(s) == item_value_lower then
       return true
     elseif item_type == "a" then
@@ -125,23 +143,6 @@ allowed = function(url, parenturl)
     end
   end
 
---[[  local match = string.match(url, "^https?://sites%.google%.com/site/([a-zA-Z0-9%-_%.]+)")
-  if not match then
-    match = string.match(url, "^https?://sites%.google%.com/a/defaultdomain/([a-zA-Z0-9%-_%.]+)")
-  end
-  if not match then
-    match = string.match(url, "^https?://sites%.google%.com/a/([a-zA-Z0-9%-_%.]+/[a-zA-Z0-9%-_%.]+)")
-  end
-  if match then
-    if string.lower(match) == string.lower(item_value) then
-      return true
-    elseif string.find(match, "/") then
-      discover_item("a", match)
-    else
-      discover_item("site", match)
-    end
-  end]]
-
   return false
 end
 
@@ -149,10 +150,10 @@ wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_pars
   local url = urlpos["url"]["url"]
   local html = urlpos["link_expect_html"]
 
-  -- These types of static resources have a version number that change frequently
+--[[  -- These types of static resources have a version number that change frequently
   if string.match(url, "^https?://ssl%.gstatic%.com/sites/p/[a-z0-9]+/") and html then
     return false
-  end
+  end]]
 
   if (downloaded[url] ~= true and addedtolist[url] ~= true)
     and (allowed(url, parent["url"]) or html == 0) then
@@ -178,7 +179,9 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     end
     if (downloaded[url_] ~= true and addedtolist[url_] ~= true)
       and allowed(url_, origurl) then
-      table.insert(urls, { url=url_ })
+      table.insert(urls, {
+        url=url_,
+        headers={["Accept-Language"]="en-US,en;q=0.7"}})
       addedtolist[url_] = true
       addedtolist[url] = true
     end
@@ -238,6 +241,11 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     check(a .. "/site/" .. b)
   end
 
+  if string.match(url, "^https?://sites%.google%.com/.+/_/rsrc/.+%?")
+    or string.match(url, "^https?://[^/]*%.googlegroups%.com/.+%?") then
+    check(string.match(url, "^([^%?]+)%?"))
+  end
+
   if allowed(url, nil) and status_code == 200
     and not string.match(url, "^https?://[^/]*%.googlegroups%.com")
     and not (
@@ -246,7 +254,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     )
     and not (
       item_type == "a"
-      and string.match(url, "^https?://sites%.google%.com/site/[^/]+/[^/]+/_/rsrc/")
+      and string.match(url, "^https?://sites%.google%.com/a/[^/]+/[^/]+/_/rsrc/")
     ) then
     html = read_file(file)
     if string.match(url, "^https?://sites%.google%.com/site/[^/]+/$")
@@ -294,6 +302,11 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
 
   if status_code >= 300 and status_code <= 399 then
     local newloc = urlparse.absolute(url["url"], http_stat["newloc"])
+    if string.match(newloc, "^https?://[^/]*google%.com/sorry") then
+      io.stdout:write("Got a CAPTCHA.\n")
+      io.stdout:flush()
+      abortgrab = true
+    end
     if downloaded[newloc] == true or addedtolist[newloc] == true
       or not allowed(newloc, url["url"]) then
       tries = 0
@@ -312,19 +325,19 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     return wget.actions.ABORT
   end
 
-  if (status_code >= 400 and status_code ~= 404)
+  if (status_code >= 401 and status_code ~= 404)
     or status_code  == 0 then
     io.stdout:write("Server returned "..http_stat.statcode.." ("..err.."). Sleeping.\n")
     io.stdout:flush()
     local maxtries = 10
     if not allowed(url["url"], nil) then
-      maxtries = 3
+      maxtries = 2
     end
     if tries >= maxtries then
       io.stdout:write("\nI give up...\n")
       io.stdout:flush()
       tries = 0
-      if maxtries == 3 then
+      if maxtries == 2 then
         return wget.actions.EXIT
       else
         return wget.actions.ABORT
