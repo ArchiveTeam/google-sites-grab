@@ -18,6 +18,7 @@ local item_value_lower = string.lower(item_value)
 
 local discovered = {}
 discovered[item_type .. ":" .. item_value] = true
+discovered["site:sites"] = true
 
 for ignore in io.open("ignore-list", "r"):lines() do
   downloaded[ignore] = true
