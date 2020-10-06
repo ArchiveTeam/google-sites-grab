@@ -54,7 +54,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20201006.03'
+VERSION = '20201006.04'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'google-sites'
 TRACKER_HOST = 'trackerproxy.archiveteam.org'
@@ -193,7 +193,7 @@ class WgetArgs(object):
             WGET_AT,
             '-U', USER_AGENT,
             '-nv',
-            '--no-cookies',
+            '--load-cookies', 'cookies.txt',
             '--content-on-error',
             '--lua-script', 'google-sites.lua',
             '-o', ItemInterpolation('%(item_dir)s/wget.log'),

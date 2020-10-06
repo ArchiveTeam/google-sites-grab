@@ -307,6 +307,11 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
       io.stdout:flush()
       abortgrab = true
     end
+    if string.match(newurl, "/matureConfirm%?") then
+      io.stdout:write("18+ cookie not working.\n")
+      io.stdout:flush()
+      abortgrab = true
+    end
     if downloaded[newloc] == true or addedtolist[newloc] == true
       or not allowed(newloc, url["url"]) then
       tries = 0
