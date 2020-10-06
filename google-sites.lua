@@ -307,7 +307,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
       io.stdout:flush()
       abortgrab = true
     end
-    if string.match(newurl, "/matureConfirm%?") then
+    if string.match(newloc, "/matureConfirm%?") then
       io.stdout:write("18+ cookie not working.\n")
       io.stdout:flush()
       abortgrab = true
