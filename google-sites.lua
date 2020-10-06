@@ -79,6 +79,7 @@ allowed = function(url, parenturl)
     or string.match(url, "^https?://sites%.google%.com/feeds/revision/")
     or string.match(url, "^https?://sites%.google%.com/feeds/content/[^/]+/[^/]+/batch$")
     or string.match(url, "^https?://accounts%.google%.com/ServiceLogin")
+    or string.match(url, "^https?://sites%.google%.com/.+/system/app/pages/picasaembed%?")
     or (
       item_type == "a"
       and string.match(url, "^https?://sites%.google%.com/a/[^/]+/[^/]+/_/tz$")
