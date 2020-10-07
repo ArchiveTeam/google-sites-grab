@@ -54,7 +54,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20201006.07'
+VERSION = '20201006.08'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'google-sites'
 TRACKER_HOST = 'trackerproxy.archiveteam.org'
@@ -243,7 +243,6 @@ class WgetArgs(object):
             assert '/' not in item_value
             wget_args.extend(['--warc-header', 'google-sites-site: ' + item_value])
             wget_args.append('https://sites.google.com/site/{}/'.format(item_value))
-            wget_args.append('https://sites.google.com/a/defaultdomain/{}/'.format(item_value))
         elif item_type == 'a':
             assert '/' in item_value
             wget_args.extend(['--warc-header', 'google-sites-domainsite: ' + item_value])

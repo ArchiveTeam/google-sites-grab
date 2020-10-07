@@ -121,12 +121,17 @@ allowed = function(url, parenturl)
     end
   end
 
---[[  if url == "https://sites.google.com/feeds/content/site/" .. item_value
-    or url == "https://sites.google.com/feeds/content/site/" .. item_value .. "?max-results=1000000000"
-    or url == "https://sites.google.com/feeds/content/" .. item_value
-    or url == "https://sites.google.com/feeds/content/" .. item_value .. "?max-results=1000000000" then
-    return true
-  end]]
+  match = string.match(url, "^https?://sites%.google%.com/feeds/content/.+start%-index=([0-9]+)")
+  if match and parenturl then
+    start_index_new = tonumber(match)
+    match = string.match(parenturl, "^https?://sites%.google%.com/feeds/content/.+start%-index=([0-9]+)")
+    if match then
+      start_index_old = tonumber(match)
+      if start_index_new < start_index_old then
+        return false
+      end
+    end
+  end
 
   if string.match(url, "^https?://[^/]*%.googlegroups%.com")
     or string.match(url, "^https?://[^/]*google%.com/url") then
@@ -234,12 +239,8 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     check(string.match(url, "^([^%?]+)"))
   end
 
-  local a, b = string.match(url, "^(https?://sites%.google%.com)/site/(.+)$")
-  if not a or not b then
-    a, b = string.match(url, "^(https?://sites%.google%.com)/a/defaultdomain/(.+)$")
-  end
+  local a, b = string.match(url, "^(https?://sites%.google%.com)/a/defaultdomain/(.+)$")
   if a and b then
-    check(a .. "/a/defaultdomain/" .. b)
     check(a .. "/site/" .. b)
   end
 
@@ -263,8 +264,6 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       or string.match(url, "^https?://sites%.google%.com/a/defaultdomain/[^/]+/$") then
       check("https://sites.google.com/feeds/content/site/" .. item_value .. "?max-results=1000000000")
       check("https://sites.google.com/feeds/content/site/" .. item_value)
-      check("https://sites.google.com/feeds/content/defaultdomain/" .. item_value .. "?max-results=1000000000")
-      check("https://sites.google.com/feeds/content/defaultdomain/" .. item_value)
     elseif string.match(url, "^https?://sites%.google%.com/a/[^/]+/[^/]+/$") then
       check("https://sites.google.com/feeds/content/" .. item_value .. "?max-results=1000000000")
       check("https://sites.google.com/feeds/content/" .. item_value)
