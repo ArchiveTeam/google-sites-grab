@@ -306,6 +306,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     if string.match(newloc, "^https?://[^/]*google%.com/sorry") then
       io.stdout:write("Got a CAPTCHA.\n")
       io.stdout:flush()
+      os.execute("sleep 600")
       abortgrab = true
     end
     if string.match(newloc, "/matureConfirm%?") then
