@@ -54,8 +54,8 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20201007.02'
-USER_AGENT = 'Archive Team'
+VERSION = '20201028.01'
+USER_AGENT = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
 TRACKER_ID = 'google-sites'
 TRACKER_HOST = 'trackerproxy.archiveteam.org'
 
