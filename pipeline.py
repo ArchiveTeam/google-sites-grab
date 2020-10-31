@@ -41,7 +41,8 @@ WGET_AT = find_executable(
     'Wget+AT',
     [
         'GNU Wget 1.20.3-at.20200902.01',
-        'GNU Wget 1.20.3-at.20200919.01'
+        'GNU Wget 1.20.3-at.20200919.01',
+        'GNU Wget 1.20.3-at.20201030.01'
     ],
     ['./wget-at']
 )
@@ -54,7 +55,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20201007.02'
+VERSION = '20201031.01'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'google-sites'
 TRACKER_HOST = 'trackerproxy.archiveteam.org'
