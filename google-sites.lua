@@ -142,6 +142,14 @@ allowed = function(url, parenturl)
     return true
   end
 
+  -- At this point only Google Sites URLS should be in consideration
+  -- Technically, it is possible for this to recurse to other Google Sites;
+  --  but because these have a finite number of pages, even in the event
+  --  that this does happen, it will be of little consequence
+  if not string.match(url, '^https?://sites%.google%.com/') then
+    return false
+  end
+
   prev = nil
   for s in string.gmatch(url, "([a-zA-Z0-9%%%-_%.]+)") do
     if item_type == "site" and string.lower(s) == item_value_lower then
