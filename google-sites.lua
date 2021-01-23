@@ -142,12 +142,13 @@ allowed = function(url, parenturl)
     return true
   end
 
+
   prev = nil
   for s in string.gmatch(url, "([a-zA-Z0-9%%%-_%.]+)") do
-    if item_type == "site" and string.lower(s) == item_value_lower then
+    if item_type == "site" and string.lower(s) == item_value_lower and string.match(url, '^https?://sites%.google%.com/') then
       return true
     elseif item_type == "a" then
-      if prev and string.lower(prev .. "/" .. s) == item_value_lower then
+      if prev and string.lower(prev .. "/" .. s) == item_value_lower and string.match(url, '^https?://sites%.google%.com/') then
         return true
       end
       prev = s
