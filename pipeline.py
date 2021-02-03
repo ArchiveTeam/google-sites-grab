@@ -44,7 +44,10 @@ WGET_AT = find_executable(
         'GNU Wget 1.20.3-at.20200919.01',
         'GNU Wget 1.20.3-at.20201030.01'
     ],
-    ['./wget-at']
+    [
+         './wget-at',
+         '/home/warrior/data/wget-at'
+    ]
 )
 
 if not WGET_AT:
@@ -58,7 +61,7 @@ if not WGET_AT:
 VERSION = '20210123.02'
 USER_AGENT = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
 TRACKER_ID = 'google-sites'
-TRACKER_HOST = 'trackerproxy.archiveteam.org'
+TRACKER_HOST = 'legacy-api.arpa.li'
 
 
 class CheckIP(SimpleTask):
