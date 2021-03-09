@@ -166,7 +166,7 @@ class ZstdDict(object):
         if cls.data is not None and time.time() - cls.created < 1800:
             return cls.data
         response = requests.get(
-            'http://trackerproxy.archiveteam.org:25654/dictionary',
+            'https://legacy-api.arpa.li/dictionary',
             params={
                 'project': TRACKER_ID
             }
