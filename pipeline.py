@@ -206,7 +206,7 @@ class WgetArgs(object):
             '--recursive', '--level=inf',
             '--no-parent',
             '--page-requisites',
-            '--timeout', '30',
+            '--timeout', '1200',
             '--tries', 'inf',
             '--domains', 'google.com',
             '--span-hosts',
