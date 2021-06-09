@@ -355,7 +355,12 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
         return wget.actions.ABORT
       end
     else
-      os.execute("sleep " .. math.floor(math.pow(2, tries)))
+      -- 429 = SLOW DOWN, ratelimiting bad here, doing this for now, will slow project down but we have time and resources
+      if status_code == 429 then
+        os.execute("sleep 30")
+      else
+        os.execute("sleep " .. math.floor(math.pow(2, tries)))
+      end
       tries = tries + 1
       return wget.actions.CONTINUE
     end
