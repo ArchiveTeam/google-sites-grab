@@ -55,7 +55,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20210609.02'
+VERSION = '20210609.03'
 USER_AGENT = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
 TRACKER_ID = 'google-sites'
 TRACKER_HOST = 'legacy-api.arpa.li'

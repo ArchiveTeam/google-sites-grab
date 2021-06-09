@@ -353,11 +353,16 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
       io.stdout:write("\nI give up...\n")
       io.stdout:flush()
       tries = 0
-      if maxtries == 1 or maxtries == 3 then
+      if maxtries == 1 then
         return wget.actions.EXIT
-      else
-        return wget.actions.ABORT
       end
+      if status_code == 403 then
+        local html = read_file(http_stat["local_file"])
+        if string.match(html, "^%s*Access denied%s*$") then
+          return wget.actions.EXIT
+        end
+      end
+      return wget.actions.ABORT
     else
       -- 429 = SLOW DOWN, ratelimiting bad here, doing this for now, will slow project down but we have time and resources
       if status_code == 429 then
