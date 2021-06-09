@@ -345,11 +345,15 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     if not allowed(url["url"], nil) then
       maxtries = 1
     end
+    -- limit the time taken on 403 errors 
+    if status_code == 403 then
+      maxtries = 3
+    end
     if tries >= maxtries then
       io.stdout:write("\nI give up...\n")
       io.stdout:flush()
       tries = 0
-      if maxtries == 1 then
+      if maxtries == 1 or maxtries == 3 then
         return wget.actions.EXIT
       else
         return wget.actions.ABORT
